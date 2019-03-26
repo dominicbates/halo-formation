@@ -272,21 +272,6 @@ fig.tight_layout()
 
 
 
-# ----- Individual bins of halo mass
-# formation time vs sfr
-#plot_x_vs_y_hm_bin('f_half_age','gal_sfr',[2,13],[0,8],25,'$f_{half}$','$SFR$','m',gal_hm,[11.5,11.75])
-#plot_x_vs_y_hm_bin('f_vmax_age','gal_sfr',[2,13],[0,8],25,'$f_{vmax}$','$SRF$','m',gal_hm,[11.5,11.75])
-#plot_x_vs_y_hm_bin('f_core_age','gal_sfr',[2,13],[0,8],25,'$f_{core}$','$SRF$','m',gal_hm,[11.5,11.75])
-#plot_x_vs_y_hm_bin('f_half_age','gal_sfr',[2,13],[0,8],25,'$f_{half}$','$SFR$','m',gal_hm,[13.5,13.75])
-#plot_x_vs_y_hm_bin('f_vmax_age','gal_sfr',[2,13],[0,8],25,'$f_{vmax}$','$SRF$','m',gal_hm,[13.5,13.75])
-#plot_x_vs_y_hm_bin('f_core_age','gal_sfr',[2,13],[0,8],25,'$f_{core}$','$SRF$','m',gal_hm,[13.5,13.75])
-#plot_x_vs_y_hm_bin('f_core_age','gal_sm',[2,13],[9,12],25,'$f_{core}$','$sm$','m',gal_hm,[11.5,11.75])
-#plot_x_vs_y_hm_bin('f_core_age','gal_sm',[2,13],[9,12],25,'$f_{core}$','$sm$','m',gal_hm,[12,12.25])
-#plot_x_vs_y_hm_bin('f_core_age','gal_sm',[2,13],[9,12],25,'$f_{core}$','$sm$','m',gal_hm,[13,13.75])
-## - not working maybe?
-##plot_x_vs_y_hm_bin('f_core_age','gal_sh_ratio',[2,13],[0,0.05],25,'$f_{core}$','$sh r$','m',gal_hm,[11.5,11.75])
-##plot_x_vs_y_hm_bin('f_core_age','gal_sh_ratio',[2,13],[0,0.05],25,'$f_{core}$','$sh r$','m',gal_hm,[13.5,13.5])
-
 
 # =============================================================================
 
@@ -296,9 +281,6 @@ fig.tight_layout()
 
 
 # ====================== Setup random forst functions =========================
-
-# t25, t50, t75
-#compute_hist_percentile(bin_cent,counts,percentile_n)
 
 def run_random_forest(input_data,input_data_df,output_data,printyn=True):
     # ---------- Split in to training and test data
