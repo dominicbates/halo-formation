@@ -1,0 +1,163 @@
+-- ********************************************************************
+-- Finding snapshot where half mass is reached (satalites and centrals)
+-- ********************************************************************
+
+-- Create z=0 sample with halo id and first id along main branch
+WITH local_sample AS (
+SELECT TAB.galaxyId
+,      b.haloid, b.mainLeafId, b.np,b.m_mean200
+  FROM Henriques2015a..MRscPlanck1 TAB
+  ,    MpaHalotrees..mrscplanck1 b   
+WHERE TAB.x<200 and TAB.y<200 and TAB.z<200
+  AND TAB.snapnum=53
+   AND b.haloid=TAB.haloid
+   AND (TAB.type=1 OR TAB.type=0) -- selecting on centrals or satellites
+   AND b.m_mean200>= 31.62 -- why? needed for 2nd definition of halo mass (greater than constant value)
+),
+
+-- Compute snapshot where progenitor is greater than half the final mass
+ext as ( 
+SELECT LTAB.galaxyId, min(PROG.snapnum) as minsnap_mmean, max(PROG.redshift) as redshift  -- select gal ids of z=0 sample and earliest snapnum where (halo mass is greater than half z=0 mass)
+  FROM local_sample LTAB, MpaHalotrees..mrscplanck1 prog 
+WHERE prog.HaloID BETWEEN LTAB.haloId AND LTAB.mainLeafId -- find whole progenitor tree
+  AND prog.m_mean200>= LTAB.m_mean200/2.0 -- return snapshots where mass of progenitor > 1/2 mass of halo
+GROUP BY LTAB.galaxyId
+) 
+SELECT ext.minsnap_mmean, ext.redshift -- export this snapnum and galaxy id
+, g.galaxyId
+
+INTO MyDB..f_half_cent_plus_sat_200mpc_2 -- SAVE HERE!
+  FROM ext
+  ,    Henriques2015a..MRscPlanck1 g 
+
+WHERE g.galaxyid=ext.galaxyid -- not sure why this is needed
+
+
+— TWO QUERIES FOR EACH DEFINITION OF HALO MASS?? WHY??? CENTRALS OR CENTRALS AND SATALTES?????
+no forceseek, removed one leafid, changed leaDid to leaFid
+
+
+-- ***********************************************************************
+-- Finding snapshot where constant mass is reached (satalites and centrals)
+-- ***********************************************************************
+
+
+-- Create z=0 sample with halo id and first id along main branch
+WITH local_sample AS (
+SELECT TAB.galaxyId
+,      b.haloid, b.mainLeafId   , b.np
+  FROM Henriques2015a..MRscPlanck1 TAB
+  ,    MpaHalotrees..mrscplanck1 b   
+WHERE TAB.x<200 and TAB.y<200 and TAB.z<200
+  AND TAB.snapnum=53
+   AND b.haloid=TAB.haloid
+   AND (TAB.type=0 OR TAB.type=1) -- selecting on centrals or satellites
+   AND b.m_mean200>= 31.62
+),
+
+-- Compute snapshot where progenitor is greater than some constant value (10^10.5 h^-1 Mo)
+ext as ( 
+SELECT LTAB.galaxyId, min(PROG.snapnum) as minsnap_core_mmean, max(PROG.redshift) as redshift  
+  FROM local_sample LTAB, MpaHalotrees..mrscplanck1 prog 
+WHERE prog.HaloID BETWEEN LTAB.haloId AND LTAB.mainLeafId
+  AND prog.m_mean200>= 31.62    -- return snapshots where mass of progenitor > constant value
+GROUP BY LTAB.galaxyId
+) 
+SELECT ext.minsnap_core_mmean, ext.redshift
+, g.galaxyId
+
+INTO MyDB..f_core_cent_plus_sat_200mpc_2 -- SAVE HERE!
+
+  FROM ext
+  ,    Henriques2015a..MRscPlanck1 g 
+
+WHERE g.galaxyid=ext.galaxyid
+
+
+
+
+-- **********************************************************************************
+-- Finding snapshot where maximum virial velocity is reached (satalites and centrals)
+-- **********************************************************************************
+
+
+
+WITH local_sample AS (
+SELECT TAB.galaxyId
+,      b.haloid, b.mainLeafId   , b.np, b.vMax
+  FROM Henriques2015a..MRscPlanck1 TAB
+  ,    MpaHalotrees..mrscplanck1 b   
+WHERE TAB.x<200 and TAB.y<200 and TAB.z<200
+  AND TAB.snapnum=53
+   AND b.haloid=TAB.haloid
+   AND (TAB.type=0 OR TAB.type=1)  -- selecting on centrals or satellites
+   AND b.m_mean200>= 31.62
+),
+ext as ( 
+
+SELECT LTAB.galaxyId, PROG.snapnum as minsnap_vMax_mmean, PROG.vMax, PROG.redshift as redshift
+  FROM local_sample LTAB, MpaHalotrees..mrscplanck1 prog 
+WHERE prog.HaloID BETWEEN LTAB.haloId AND LTAB.mainLeafId
+
+  AND PROG.vMax = (SELECT max(PROG.vMax) from MpaHalotrees..mrscplanck1 prog WHERE prog.HaloID BETWEEN LTAB.haloId AND LTAB.mainLeafId) 
+
+) 
+SELECT ext.minsnap_vMax_mmean, ext.redshift
+, g.galaxyId
+
+INTO MyDB..f_vmax_cent_plus_sat_200mpc_2 -- SAVE HERE!
+
+  FROM ext
+  ,    Henriques2015a..MRscPlanck1 g 
+
+WHERE g.galaxyid=ext.galaxyid
+
+
+-- *******************************************************
+-- Find some corresponding observables (for same galaxies)
+-- *******************************************************
+
+
+
+
+ SELECT g.galaxyId
+,      b.haloid
+,      b.np, b.snapnum as hsnap, b.redshift as hz,
+,      g.haloId as gHid, g.redshift, g.type
+,      g.snapnum, g.stellarMass, g.sfr, g.massWeightedAge
+
+INTO MyDB..some_observables_cent_plus_sat_test -- SAVE HERE!
+
+FROM Henriques2015a..MRscPlanck1 g
+  ,    MpaHalotrees..mrscplanck1 b   
+
+WHERE g.x<20 and g.y<20 and g.z<20
+  AND g.snapnum=53
+   AND b.haloid=g.haloid
+   AND (g.type=1 or g.type=0)
+   AND b.m_mean200>= 31.62
+
+
+-- *******************************************************
+-- Find some corresponding observables (for same galaxies)
+-- *******************************************************
+
+
+
+
+ SELECT g.galaxyId
+,      b.haloid
+,      b.np, b.snapnum as hsnap, b.redshift as hz,
+,      g.haloId as gHid, g.redshift, g.type
+,      g.snapnum, g.stellarMass, g.sfr, g.massWeightedAge
+
+INTO MyDB..some_observables_cent_plus_sat_test -- SAVE HERE!
+
+FROM Henriques2015a..MRscPlanck1 g
+  ,    MpaHalotrees..mrscplanck1 b   
+
+WHERE g.x<20 and g.y<20 and g.z<20
+  AND g.snapnum=53
+   AND b.haloid=g.haloid
+   AND (g.type=1 or g.type=0)
+   AND b.m_mean200>= 31.62
