@@ -30,10 +30,10 @@ INTO MyDB..f_half_cent_plus_sat_200mpc_2 -- SAVE HERE!
   FROM ext
   ,    Henriques2015a..MRscPlanck1 g 
 
-WHERE g.galaxyid=ext.galaxyid -- not sure why this is needed
+WHERE g.galaxyid=ext.galaxyid
 
 
-— TWO QUERIES FOR EACH DEFINITION OF HALO MASS?? WHY??? CENTRALS OR CENTRALS AND SATALTES?????
+— TWO QUERIES FOR EACH DEFINITION OF HALO MASS? CENTRALS OR CENTRALS AND SATALTES?
 no forceseek, removed one leafid, changed leaDid to leaFid
 
 
