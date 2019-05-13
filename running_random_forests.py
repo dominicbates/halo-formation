@@ -1,5 +1,5 @@
 # =============================================================================
-# ============= Computing halo formation times from observables ===============
+# ============= Plotting observables with halo formation times ================
 # =============================================================================
 
 
@@ -48,12 +48,12 @@ def load_data(with_errors=False):
     f_vmax_z = np.array(combined_data['f_vmax_z'])
                           
     # Create arrays of obersvables (matched)
-    gal_sm = np.array(combined_data['stellarMass']) * (10**10) #* 0.7
+    gal_sm = np.array(combined_data['stellarMass']) * (10**10) #/ 0.7 # Ignoring h atm
     gal_type = np.array(combined_data['type'])
     gal_sfr = np.array(combined_data['sfr'])
     gal_ssfr = gal_sfr / gal_sm; 
     gal_mwa = np.array(combined_data['massWeightedAge'])# Units 10**9 yr
-    gal_hm = np.array(combined_data['np']) * 8.611e8 #* 0.7
+    gal_hm = np.array(combined_data['np']) * 8.611e8 #/ 0.7
     gal_sh_ratio = gal_sm / gal_hm
     
     # Take log of stellar mass and halo mass
@@ -80,18 +80,54 @@ def load_data(with_errors=False):
         
     
     # Compute sfh by adding sfh of disk, bulge and icm
-    gal_sfh = combined_data.iloc[:,54:74].values#combined_data.iloc[:,14:34].values + combined_data.iloc[:,34:54].values + combined_data.iloc[:,54:74].values
-
+    gal_sfh = combined_data.iloc[:,14:34].values + combined_data.iloc[:,34:54].values + combined_data.iloc[:,54:74].values
+    # turn in to units of stellar mass (i.e. stellar mass formed in this bin)
+    gal_sfh = gal_sfh * (10**10) #/ 0.7
+    # Keep only first 13 bins of sfh since others are empty.
+    gal_sfh = gal_sfh[:,0:13]
+    # Open sfh bins
+    sfh_bin_info = pd.read_csv('/Users/dominicbates/Documents/Python/Halo Formation/data/lgal_sfh_bin_limits.csv')
+    sfh_bin_cents = np.array(sfh_bin_info['t_from'] + sfh_bin_info['t_to'])/2
+                             
+    # Flip arrays so early times sfh bins are at the END of array!
+    sfh_bin_cents = np.flip(sfh_bin_cents)
+    gal_sfh = np.flip(gal_sfh,axis=1)
+    # Tried normalising sfh to 1 (don't do this - performs worse)
+    #for n in range(np.size(gal_sm)):
+        #gal_sfh[n] = gal_sfh[n]/gal_sfh[n].sum()
+    
     # Add random errors to data
     if with_errors==True:
-        gal_sm = gal_sm + (np.random.randn(np.size(gal_sm))*0.15)
-        gal_mwa = gal_mwa + (np.random.randn(np.size(gal_mwa))*1.7)
+        
+        # Load script to compute covariance in offsets of true vs vespa output
+        from compute_observable_errors import compute_covariance_vespa_lgal_data
+        
+        # Compute covariance
+        print('Computing realistic errors (from vespa) for mock data')
+        cov_off, off_means = compute_covariance_vespa_lgal_data(1)
+        
+        # Draw random errors for all parameters using this covariance
+        mock_errors = np.random.multivariate_normal(off_means,cov_off,size=np.size(gal_sm)) 
+        e_sm = mock_errors[:,0]
+        e_mwa = mock_errors[:,1]
+        e_ysf = mock_errors[:,2]
+        e_sfh = mock_errors[:,3:]
+        
+        # Turn error in ysf in to sfh error
+        e_sfr = e_ysf * (10**gal_sm) / (250000000)
+        
+        # Turn error in sfh (normalised to 1) in to sfg (with mass)
+        e_sfh = np.swapaxes(np.swapaxes(e_sfh,0,1) * (10**gal_sm), 1, 0)
+        
+        gal_sm = gal_sm + e_sm
+        gal_mwa = gal_mwa + e_mwa
+        gal_sfr = gal_sfr + e_sfr
+        gal_sfh = gal_sfh + e_sfh
+        gal_ssfr = gal_sfr / 10**(gal_sm)
         
         # Guess errors?
-        gal_hm = gal_hm + (np.random.randn(np.size(gal_hm))*0.3)
+        gal_hm = gal_hm + (np.random.randn(np.size(gal_hm))*0.47)
         gal_sh_ratio = (10**gal_sm) / (10**gal_hm)
-        gal_sfr = gal_sfr + (np.random.randn(np.size(gal_hm))*0.3*gal_sfr)
-        gal_ssfr = gal_sfr / 10**(gal_sm)
         print('Errors added to observables')
 
     print('Data loaded')
@@ -338,15 +374,15 @@ all_min_sfh_df = pd.DataFrame(all_min_sfh, columns=['sm', 'sfr', 'ssfr', 'mwa', 
 
 # Trying with all parameters minus halo mass
 all_min_h = np.concatenate([all_min_h_sfh,gal_sfh],axis=1)
-all_min_h_df = pd.DataFrame(all_min_h, columns=['sm', 'sfr', 'ssfr', 'mwa', 'sh_ratio','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20'])
+all_min_h_df = pd.DataFrame(all_min_h, columns=['sm', 'sfr', 'ssfr', 'mwa', 'sh_ratio','1','2','3','4','5','6','7','8','9','10','11','12','13'])
 
 # Trying with all parameters
 all_par = np.concatenate([all_min_sfh,gal_sfh],axis=1)
-all_par_df = pd.DataFrame(all_par, columns=['sm', 'sfr', 'ssfr', 'mwa', 'sh_ratio','hm','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20'])
+all_par_df = pd.DataFrame(all_par, columns=['sm', 'sfr', 'ssfr', 'mwa', 'sh_ratio','hm','1','2','3','4','5','6','7','8','9','10','11','12','13'])
 
 # Trying with just SFH
 just_sfh = np.copy(gal_sfh)
-just_sfh_df = pd.DataFrame(just_sfh, columns=['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20'])
+just_sfh_df = pd.DataFrame(just_sfh, columns=['1','2','3','4','5','6','7','8','9','10','11','12','13'])
 
 
 
@@ -506,6 +542,7 @@ plt.plot(hm_bins_cent, rmse_fc_sfr,'k-',color='orange',linewidth=2,alpha=0.5)
 plt.plot(hm_bins_cent, rmse_fc_ssfr,'r-',linewidth=2,alpha=0.5)
 plt.plot(hm_bins_cent, rmse_fc_sh,'k-',color='brown',linewidth=2,alpha=0.5)
 plt.ylim([0,2.3])
+plt.ylim([0,3])
 plt.xlim([11.5,13.5])
 plt.ylabel('$\sigma_{RMS}$ $(GYr)$')
 plt.xlabel('$M_{h}$')
@@ -517,7 +554,8 @@ plt.text(11.58, 2.05, '$f_{core}$', color='k',horizontalalignment='left',fontsiz
 
 # Set tight layout and save
 fig.tight_layout()
-#plt.savefig('thesis_plot_ch4_1_parameter.pdf',bbox_inches='tight')
+#plt.savefig('thesis_plot_ch4_1_parameter_19_04_19.pdf',bbox_inches='tight')
+#plt.savefig('thesis_plot_ch4_1_parameter_with_noise_19_04_19.pdf',bbox_inches='tight')
 
 
 
@@ -573,6 +611,7 @@ plt.plot(hm_bins_cent, rmse_fc_all,'k-',color='deeppink',linewidth=2,alpha=0.5)
 plt.plot(hm_bins_cent, rmse_fc_all_sfh_hm,'k-',color='navy',linewidth=2,alpha=0.5)
 plt.plot(hm_bins_cent, rmse_fc_sm_mwa_ssfr,'c-',linewidth=2,alpha=0.5)
 plt.ylim([0,2.3])
+plt.ylim([0,3])
 plt.xlim([11.5,13.5])
 plt.ylabel('$\sigma_{RMS}$ $(GYr)$')
 plt.xlabel('$M_{h}$')
@@ -583,4 +622,209 @@ plt.text(11.58, 2.05, '$f_{core}$', color='k',horizontalalignment='left',fontsiz
 
 # Set tight layout and save
 fig.tight_layout()
-#plt.savefig('thesis_plot_ch4_random_forests.pdf',bbox_inches='tight')
+#plt.savefig('thesis_plot_ch4_random_forests_19_04_19.pdf',bbox_inches='tight')
+#plt.savefig('thesis_plot_ch4_random_forests_with_noise_19_04_19.pdf',bbox_inches='tight')
+
+
+
+
+
+
+
+# ==================== Try binning by stellar mass instead ====================
+
+# Trying with just sm, ssfr, mwa
+just_sm_mwa_ssfr = np.column_stack((gal_sm, gal_ssfr, gal_mwa))
+just_sm_mwa_ssfr_df = pd.DataFrame(just_sm_mwa_ssfr, columns=['sm', 'ssfr', 'mwa'])
+
+# Trying with all parameters minus halo mass
+all_observables = np.concatenate([just_sm_mwa_ssfr,gal_sfh],axis=1)
+all_observables_df = pd.DataFrame(all_observables, columns=['sm', 'ssfr', 'mwa', '1','2','3','4','5','6','7','8','9','10','11','12','13'])
+
+
+# Define bins of stellar mass
+sm_bins = np.linspace(9.5,11.5,9)
+sm_bins = np.linspace(9.5,11.5,11)
+sm_bins_cent = (sm_bins[0:-1] + sm_bins[1:])/2
+
+# Create blank arrays to store RMS errors
+# -----
+rmse2_fh_sm = np.zeros(sm_bins.size-1) # for f_half
+rmse2_fh_mwa = np.zeros(sm_bins.size-1)
+rmse2_fh_sfr = np.zeros(sm_bins.size-1)
+rmse2_fh_ssfr = np.zeros(sm_bins.size-1)
+rmse2_fh_sm_mwa_ssfr = np.zeros(sm_bins.size-1)
+rmse2_fh_all_obs = np.zeros(sm_bins.size-1)
+# -----
+rmse2_fv_sm = np.zeros(sm_bins.size-1) # for f_vmax
+rmse2_fv_mwa = np.zeros(sm_bins.size-1)
+rmse2_fv_sfr = np.zeros(sm_bins.size-1)
+rmse2_fv_ssfr = np.zeros(sm_bins.size-1)
+rmse2_fv_sm_mwa_ssfr = np.zeros(sm_bins.size-1)
+rmse2_fv_all_obs = np.zeros(sm_bins.size-1)
+# -----
+rmse2_fc_sm = np.zeros(sm_bins.size-1) # for f_core
+rmse2_fc_mwa = np.zeros(sm_bins.size-1)
+rmse2_fc_sfr = np.zeros(sm_bins.size-1)
+rmse2_fc_ssfr = np.zeros(sm_bins.size-1)
+rmse2_fc_sm_mwa_ssfr = np.zeros(sm_bins.size-1)
+rmse2_fc_all_obs = np.zeros(sm_bins.size-1)
+
+# Loop though stellar mass bins
+for h in range(sm_bins.size-1):
+    # Select galaxies in this stellar mass bin
+    sel = (gal_sm >= sm_bins[h]) * (gal_sm < sm_bins[h+1])
+
+    # Compute rms error for each parameter
+    # -----
+    rmse2_fh_sm[h] = compute_1d_polyfit_rmse(gal_sm[sel],f_half_age[sel])
+    rmse2_fh_mwa[h] = compute_1d_polyfit_rmse(gal_mwa[sel],f_half_age[sel])
+    rmse2_fh_sfr[h] = compute_1d_polyfit_rmse(gal_sfr[sel],f_half_age[sel])
+    rmse2_fh_ssfr[h] = compute_1d_polyfit_rmse(gal_ssfr[sel],f_half_age[sel])
+    # -----
+    rmse2_fv_sm[h] = compute_1d_polyfit_rmse(gal_sm[sel],f_vmax_age[sel])
+    rmse2_fv_mwa[h] = compute_1d_polyfit_rmse(gal_mwa[sel],f_vmax_age[sel])
+    rmse2_fv_sfr[h] = compute_1d_polyfit_rmse(gal_sfr[sel],f_vmax_age[sel])
+    rmse2_fv_ssfr[h] = compute_1d_polyfit_rmse(gal_ssfr[sel],f_vmax_age[sel])
+    # -----
+    rmse2_fc_sm[h] = compute_1d_polyfit_rmse(gal_sm[sel],f_core_age[sel])
+    rmse2_fc_mwa[h] = compute_1d_polyfit_rmse(gal_mwa[sel],f_core_age[sel])
+    rmse2_fc_sfr[h] = compute_1d_polyfit_rmse(gal_sfr[sel],f_core_age[sel]) 
+    rmse2_fc_ssfr[h] = compute_1d_polyfit_rmse(gal_ssfr[sel],f_core_age[sel])    
+    
+    # Compute rms error for several parameters
+    # -----
+    rmse2_fh_sm_mwa_ssfr[h] = compute_nd_rf_rmse(just_sm_mwa_ssfr[sel], just_sm_mwa_ssfr_df[sel], f_half_age[sel])
+    rmse2_fh_all_obs[h] = compute_nd_rf_rmse(just_sfh[sel], just_sfh_df[sel], f_half_age[sel])
+    # -----
+    rmse2_fv_sm_mwa_ssfr[h] = compute_nd_rf_rmse(just_sm_mwa_ssfr[sel], just_sm_mwa_ssfr_df[sel], f_vmax_age[sel])
+    rmse2_fv_all_obs[h] = compute_nd_rf_rmse(just_sfh[sel], just_sfh_df[sel], f_vmax_age[sel])
+    # -----
+    rmse2_fc_sm_mwa_ssfr[h] = compute_nd_rf_rmse(just_sm_mwa_ssfr[sel], just_sm_mwa_ssfr_df[sel], f_core_age[sel])
+    rmse2_fc_all_obs[h] = compute_nd_rf_rmse(just_sfh[sel], just_sfh_df[sel], f_core_age[sel])
+        
+    print(str(((h+1)/(hm_bins.size-1))*100)+'% complete')
+
+
+
+# ============== Plotting results from single paramters (sm) ==================
+
+fig = plt.figure(figsize=(4.3,9))
+
+# Plotting results for f_half
+plt.subplot(3, 1, 1)
+# Halo mass
+plt.plot(sm_bins_cent, rmse2_fh_sm,'k-',linewidth=2,linestyle='dashed',alpha=0.5)
+# Other parameters
+plt.plot(sm_bins_cent, rmse2_fh_mwa,'g-',linewidth=2,alpha=0.5)
+plt.plot(sm_bins_cent, rmse2_fh_sfr,'k-',color='orange',linewidth=2,alpha=0.5)
+plt.plot(sm_bins_cent, rmse2_fh_ssfr,'r-',linewidth=2,alpha=0.5)
+plt.ylim([0.8,2.3])
+plt.xlim([9.5,11.5])
+plt.ylabel('$\sigma_{RMS}$ $(GYr)$')
+plt.xlabel('$M_{h}$')
+plt.text(11.4, 2.18, '$MWA$', color='g',horizontalalignment='right',fontsize=12)
+plt.text(11.4, 2.04, '$SFR$', color='orange',horizontalalignment='right',fontsize=12)
+plt.text(11.4, 1.9, '$sSFR$', color='r',horizontalalignment='right',fontsize=12)
+plt.text(9.58, 2.13, '$f_{half}$', color='k',horizontalalignment='left',fontsize=16)
+
+# Plotting results for f_vmax
+plt.subplot(3, 1, 2)
+# Halo mass
+plt.plot(sm_bins_cent, rmse2_fv_sm,'k-',linewidth=2,linestyle='dashed',alpha=0.5)
+# Other parameters
+plt.plot(sm_bins_cent, rmse2_fv_mwa,'g-',linewidth=2,alpha=0.5)
+plt.plot(sm_bins_cent, rmse2_fv_sfr,'k-',color='orange',linewidth=2,alpha=0.5)
+plt.plot(sm_bins_cent, rmse2_fv_ssfr,'r-',linewidth=2,alpha=0.5)
+plt.ylim([2,3.2])
+plt.xlim([9.5,11.5])
+plt.ylabel('$\sigma_{RMS}$ $(GYr)$')
+plt.xlabel('$M_{h}$')
+plt.text(11.4, 3.1, '$MWA$', color='g',horizontalalignment='right',fontsize=12)
+plt.text(11.4, 2.98, '$SFR$', color='orange',horizontalalignment='right',fontsize=12)
+plt.text(11.4, 2.86, '$sSFR$', color='r',horizontalalignment='right',fontsize=12)
+plt.text(9.58, 3.06, '$f_{vmax}$', color='k',horizontalalignment='left',fontsize=16)
+
+
+# Plotting results for f_core
+plt.subplot(3, 1, 3)
+# Halo mass
+plt.plot(sm_bins_cent, rmse2_fc_sm,'k-',linewidth=2,linestyle='dashed',alpha=0.5)
+# Other parameters
+plt.plot(sm_bins_cent, rmse2_fc_mwa,'g-',linewidth=2,alpha=0.5)
+plt.plot(sm_bins_cent, rmse2_fc_sfr,'k-',color='orange',linewidth=2,alpha=0.5)
+plt.plot(sm_bins_cent, rmse2_fc_ssfr,'r-',linewidth=2,alpha=0.5)
+plt.ylim([0,2.3])
+#plt.ylim([0,3])
+plt.xlim([9.5,11.5])
+plt.ylabel('$\sigma_{RMS}$ $(GYr)$')
+plt.xlabel('$M_{h}$')
+plt.text(11.4, 2.1, '$MWA$', color='g',horizontalalignment='right',fontsize=12)
+plt.text(11.4, 1.86, '$SFR$', color='orange',horizontalalignment='right',fontsize=12)
+plt.text(11.4, 1.62, '$sSFR$', color='r',horizontalalignment='right',fontsize=12)
+plt.text(9.58, 2.05, '$f_{core}$', color='k',horizontalalignment='left',fontsize=16)
+
+# Set tight layout and save
+fig.tight_layout()
+#plt.savefig('thesis_plot_ch4_1_parameter_stell_mass_19_04_19.pdf',bbox_inches='tight')
+#plt.savefig('thesis_plot_ch4_1_parameter_stell_mass_with_noise_19_04_19.pdf',bbox_inches='tight')
+
+
+
+# ================= Plotting results from random forests (sm) =================
+
+fig = plt.figure(figsize=(4.3,9))
+
+# Plotting results for f_half
+plt.subplot(3, 1, 1)
+# Halo mass
+plt.plot(sm_bins_cent, rmse2_fh_sm,'k-',linewidth=2,linestyle='dashed',alpha=0.5)
+# Other parameters
+plt.plot(sm_bins_cent, rmse2_fh_all_obs,'k-',color='navy',linewidth=2,alpha=0.5)
+plt.plot(sm_bins_cent, rmse2_fh_sm_mwa_ssfr,'c-',linewidth=2,alpha=0.5)
+plt.ylim([0.8,2.3])
+plt.xlim([9.5,11.5])
+plt.ylabel('$\sigma_{RMS}$ $(GYr)$')
+plt.xlabel('$M_{\star}$')
+plt.text(11.4, 2.14, '$M_{\star} + MWA+ sSFR$', color='c',horizontalalignment='right',fontsize=12)
+plt.text(11.4, 2.00, '$... + SFH$', color='navy',horizontalalignment='right',fontsize=12)
+plt.text(9.58, 2.1, '$f_{half}$', color='k',horizontalalignment='left',fontsize=16)
+
+
+# Plotting results for f_vmax
+plt.subplot(3, 1, 2)
+# Halo mass
+plt.plot(sm_bins_cent, rmse2_fv_sm,'k-',linewidth=2,linestyle='dashed',alpha=0.5)
+# Other parameters
+plt.plot(sm_bins_cent, rmse2_fv_all_obs,'k-',color='navy',linewidth=2,alpha=0.5)
+plt.plot(sm_bins_cent, rmse2_fv_sm_mwa_ssfr,'c-',linewidth=2,alpha=0.5)
+plt.ylim([2,3.2])
+plt.xlim([9.5,11.5])
+plt.ylabel('$\sigma_{RMS}$ $(GYr)$')
+plt.xlabel('$M_{\star}$')
+plt.text(11.4, 3.1, '$M_{\star} + MWA+ sSFR$', color='c',horizontalalignment='right',fontsize=12)
+plt.text(11.4, 2.98, '$... + SFH$', color='navy',horizontalalignment='right',fontsize=12)
+plt.text(9.58, 3.06, '$f_{vmax}$', color='k',horizontalalignment='left',fontsize=16)
+
+
+# Plotting results for f_core
+plt.subplot(3, 1, 3)
+# Halo mass
+plt.plot(sm_bins_cent, rmse2_fc_sm,'k-',linewidth=2,linestyle='dashed',alpha=0.5)
+# Other parameters
+plt.plot(sm_bins_cent, rmse2_fc_all_obs,'k-',color='navy',linewidth=2,alpha=0.5)
+plt.plot(sm_bins_cent, rmse2_fc_sm_mwa_ssfr,'c-',linewidth=2,alpha=0.5)
+plt.ylim([0,2.3])
+#plt.ylim([0,3])
+plt.xlim([9.5,11.5])
+plt.ylabel('$\sigma_{RMS}$ $(GYr)$')
+plt.xlabel('$M_{\star}$')
+plt.text(11.4, 2.1, '$M_{\star} + MWA+ sSFR$', color='c',horizontalalignment='right',fontsize=12)
+plt.text(11.4, 1.86, '$... + SFH$', color='navy',horizontalalignment='right',fontsize=12)
+plt.text(9.58, 2.05, '$f_{core}$', color='k',horizontalalignment='left',fontsize=16)
+
+# Set tight layout and save
+fig.tight_layout()
+#plt.savefig('thesis_plot_ch4_random_forests_stell_mass_19_04_19.pdf',bbox_inches='tight')
+#plt.savefig('thesis_plot_ch4_random_forests_stell_mass_with_noise_19_04_19.pdf',bbox_inches='tight')
+
